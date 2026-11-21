@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Shop admin</title>
+<style>
+:root{--bg:#0c0c0d;--card:#161618;--line:#2a2a2d;--tx:#f2f1ee;--mut:#9a9a9f;--ac:#e8e4da}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--tx);font-family:system-ui,sans-serif;line-height:1.45}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;border:0;border-radius:10px;padding:9px 14px;background:var(--line)}
+button.p{background:var(--tx);color:#000;font-weight:700}
+button.d{background:#4a1f1f;color:#ffb4ab}
+input,select,textarea{width:100%;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px;margin:4px 0 12px}
+input[type=checkbox]{width:auto;margin:0 8px 0 0}
+header{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);padding:10px 14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;flex:1}
+.tabs button.on{background:var(--tx);color:#000}
+main{padding:16px;max-width:760px;margin:0 auto}
+.box{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
+.row{display:flex;gap:12px;align-items:center}
+.row img{width:56px;height:70px;object-fit:cover;border-radius:8px;background:#222}
+.row .g{flex:1;min-width:0}
+.mut{color:var(--mut);font-size:14px}
+.err{color:#ff8a80;margin:8px 0}.ok{color:#8be59b;margin:8px 0}
+label{font-size:14px;color:var(--mut)}
+.cb{display:flex;align-items:center;margin-bottom:12px}
+.pv{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}.pv img{width:48px;height:60px;object-fit:cover;border-radius:6px}
+.login{max-width:360px;margin:12vh auto;padding:16px}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+const B='https://ginmgbridtzowrmwdlyw.supabase.co',K='sb_publishable_nKOV7H8wRxf8LAc-wrOdwQ_deoEbWmT';
+let S=null;try{S=JSON.parse(sessionStorage.getItem('s')||'null')}catch(e){}
+const $=s=>document.querySelector(s);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const setS=x=>{S=x;try{x?sessionStorage.setItem('s',JSON.stringify(x)):sessionStorage.removeItem('s')}catch(e){}};
+async function auth(body,type){
+  const r=await fetch(B+'/auth/v1/token?grant_type='+type,{method:'POST',headers:{apikey:K,'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const j=await r.json();if(!r.ok)throw new Error(j.error_description||j.msg||'Login failed');
+  setS({a:j.access_token,r:j.refresh_token});
+}
+async function api(path,opt={}){
+  for(let i=0;i<2;i++){
+    const r=await fetch(B+'/rest/v1/'+path,{...opt,headers:{apikey:K,Authorization:'Bearer '+S.a,'Content-Type':'application/json',...(opt.headers||{})}});
+    if(r.status===401&&i===0){try{await auth({refresh_token:S.r},'refresh_token');continue}catch(e){logout();throw new Error('Session expired. Log in again.')}}
+    if(!r.ok){let m=r.status;try{m=(await r.json()).message||m}catch(e){}throw new Error(m)}
+    const t=await r.text();return t?JSON.parse(t):null;
+  }
+}
+function logout(){setS(null);loginView()}
+function loginView(msg){
+  $('#app').innerHTML='<div class="login box"><h2 style="margin-bottom:14px">Shop admin</h2><label>Email</label><input id="em" type="email" autocomplete="username"><label>Password</label><input id="pw" type="password" autocomplete="current-password"><button class="p" id="go" style="width:100%">Log in</button><div class="err" id="le">'+esc(msg||'')+'</div></div>';
+  $('#go').onclick=async()=>{
+    try{
+      await auth({email:$('#em').value.trim(),password:$('#pw').value},'password');
+      const ok=await api('rpc/is_admin',{method:'POST',body:'{}'});
+      if(ok!==true){setS(null);return loginView('This account is not an admin.')}
+      start();
+    }catch(e){$('#le').textContent=e.message}
+  };
+}
+const T={
+  products:{label:'Products',order:'created_at.desc',title:'name',f:[['name','text'],['price','num','Price (EUR)'],['old_price','num','Old price (optional)'],['category_id','cat','Category'],['gender','sel','Gender (used by the Men / Women menu)',['unisex','men','women']],['images','imgs','Images'],['sprite360','img','360 sprite (6 x 4 grid, 24 frames)'],['colors','list','Colors (comma separated)'],['sizes','list','Sizes (e.g. XS, S, M, L, XL, XXL)'],['model_info','text','Model info (e.g. Model is 185 cm and wears M)'],['stock','num'],['description','area'],['is_new','bool','Show "New" badge'],['is_featured','bool','Featured'],['collection_id','col','Collection'],['is_exclusive','bool','Exclusive (only sold in this shop)'],['limited_qty','num','Limited edition size (empty = not limited)'],['drop_at','dt','Drop date and time (empty = on sale now)'],['look_ids','prods','Complete the look (tick matching products)'],['active','bool','Visible in shop']],def:{active:true,stock:0,gender:'unisex'}},
+  categories:{label:'Categories',order:'sort',title:'name',f:[['name','text'],['image_url','img','Image'],['sort','num','Order (1, 2, 3...)']],def:{sort:0}},
+  collections:{label:'Collections',order:'sort',title:'name',f:[['name','text'],['description','text','Short description'],['image_url','img','Image'],['sort','num','Order (1, 2, 3...)']],def:{sort:0}},
+  hero_slides:{label:'Banner',order:'sort',title:'title',f:[['title','text','Big headline'],['subtitle','text','Small text'],['image_url','img','Background image'],['sort','num','Order (1, 2, 3...)'],['active','bool','Visible']],def:{active:true,sort:0}},
+  journal_posts:{label:'Journal',order:'post_date.desc',title:'title',f:[['title','text'],['image_url','img','Image'],['content','area'],['post_date','date','Date']],def:{}}
+};
+const tabs=[['orders','Orders'],...Object.keys(T).map(k=>[k,T[k].label]),['reviews','Reviews'],['settings','Settings']];
+let cur='orders',cats=[],cols=[],data=[];
+const loc=v=>{if(!v)return '';const d=new Date(v);d.setMinutes(d.getMinutes()-d.getTimezoneOffset());return d.toISOString().slice(0,16)};
+function shell(inner){
+  $('#app').innerHTML='<header><div class="tabs">'+tabs.map(t=>'<button data-t="'+t[0]+'" class="'+(t[0]===cur?'on':'')+'">'+t[1]+'</button>').join('')+'</div><button id="lo">Log out</button></header><main>'+inner+'</main>';
+  document.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>show(b.dataset.t));$('#lo').onclick=logout;
+}
+async function start(){cats=await api('categories?select=id,name&order=sort').catch(()=>[]);cols=await api('collections?select=id,name&order=sort').catch(()=>[]);show('orders')}
+async function show(t){
+  cur=t;shell('<p class="mut">Loading...</p>');
+  try{t==='orders'?await orders():t==='settings'?await settings():t==='reviews'?await reviewsView():await list(t)}
+  catch(e){$('main').innerHTML='<p class="err">'+esc(e.message)+'</p>'}
+}
+async function list(t){
+  const c=T[t];data=await api(t+'?select=*&order='+c.order);
+  $('main').innerHTML='<button class="p" id="add" style="margin-bottom:12px">+ Add new</button>'+(data.length?data.map(x=>'<div class="box row">'+(x.images||x.image_url?'<img src="'+esc((x.images&&x.images[0])||x.image_url)+'" alt="">':'')+'<div class="g"><b>'+esc(x[c.title])+'</b><div class="mut">'+(x.price!=null?'\u20AC'+x.price+' · stock '+x.stock+(x.active===false?' · hidden':''):(x.subtitle||x.post_date||''))+'</div></div><button data-e="'+x.id+'">Edit</button></div>').join(''):'<p class="mut">Nothing here yet.</p>');
+  $('#add').onclick=()=>form(t,null);
+  document.querySelectorAll('[data-e]').forEach(b=>b.onclick=()=>form(t,+b.dataset.e));
+}
+function form(t,id){
+  const c=T[t],it=id?data.find(x=>x.id===id):{...c.def};
+  const h=c.f.map(([k,ty,lb,op])=>{
+    const L='<label>'+(lb||k.replace(/_/g,' '))+'</label>',v=it[k];
+    if(ty==='bool')return '<div class="cb"><input type="checkbox" data-k="'+k+'" '+(v?'checked':'')+'><label>'+(lb||k)+'</label></div>';
+    if(ty==='area')return L+'<textarea rows="4" data-k="'+k+'">'+esc(v)+'</textarea>';
+    if(ty==='sel')return L+'<select data-k="'+k+'">'+op.map(o=>'<option '+(o===v?'selected':'')+'>'+o+'</option>').join('')+'</select>';
+    if(ty==='col')return L+'<select data-k="'+k+'"><option value="">-</option>'+cols.map(x=>'<option value="'+x.id+'" '+(x.id===v?'selected':'')+'>'+esc(x.name)+'</option>').join('')+'</select>';
+    if(ty==='dt')return L+'<input type="datetime-local" data-k="'+k+'" value="'+esc(loc(v))+'">';
+    if(ty==='prods')return L+'<div class="box" data-k="'+k+'" style="padding:8px 12px;max-height:220px;overflow:auto">'+data.filter(x=>x.id!==it.id).map(x=>'<label style="display:flex;gap:8px;align-items:center;padding:6px 0;color:var(--tx)"><input type="checkbox" value="'+x.id+'" '+((v||[]).includes(x.id)?'checked':'')+'>'+esc(x.name)+'</label>').join('')+'</div>';
+    if(ty==='cat')return L+'<select data-k="'+k+'"><option value="">-</option>'+cats.map(x=>'<option value="'+x.id+'" '+(x.id===v?'selected':'')+'>'+esc(x.name)+'</option>').join('')+'</select>';
+    if(ty==='img')return L+'<input data-k="'+k+'" value="'+esc(v)+'" placeholder="Image URL or upload"><button data-u="'+k+'" style="margin:-6px 0 12px">Upload photo</button>';
+    if(ty==='imgs')return L+'<div class="pv" id="pv"></div><textarea rows="3" data-k="'+k+'" placeholder="One image URL per line">'+esc((v||[]).join('\n'))+'</textarea><button data-u="'+k+'" style="margin:-6px 0 12px">Upload photo</button>';
+    return L+'<input data-k="'+k+'" data-ty="'+ty+'" type="'+(ty==='num'?'number':ty==='date'?'date':'text')+'" '+(ty==='num'?'step="any" inputmode="decimal"':'')+' value="'+esc(ty==='list'?(v||[]).join(', '):v)+'">';
+  }).join('');
+  $('main').innerHTML='<div class="box"><h3 style="margin-bottom:12px">'+(id?'Edit':'New')+' · '+c.label+'</h3>'+h+'<div class="row"><button class="p" id="sv">Save</button><button id="cn">Cancel</button>'+(id?'<button class="d" id="dl">Delete</button>':'')+'</div><div class="err" id="fe"></div></div>';
+  const pv=()=>{const e=$('#pv'),a=document.querySelector('textarea[data-k="images"]');if(e&&a)e.innerHTML=a.value.split('\n').filter(Boolean).map(u=>'<img src="'+esc(u.trim())+'" alt="">').join('')};pv();
+  const ta=document.querySelector('textarea[data-k="images"]');if(ta)ta.oninput=pv;
+  document.querySelectorAll('[data-u]').forEach(b=>b.onclick=()=>{
+    const f=document.createElement('input');f.type='file';f.accept='image/*';
+    f.onchange=async()=>{
+      if(!f.files[0])return;b.textContent='Uploading...';
+      try{
+        const url=await upload(f.files[0]),el=document.querySelector('[data-k="'+b.dataset.u+'"]');
+        el.value=el.tagName==='TEXTAREA'?(el.value.trim()?el.value.trim()+'\n':'')+url:url;pv();b.textContent='Uploaded. Add another?';
+      }catch(e){b.textContent='Upload photo';$('#fe').textContent=e.message}
+    };f.click();
+  });
+  $('#cn').onclick=()=>show(t);
+  if(id)$('#dl').onclick=async()=>{if(!confirm('Delete this item?'))return;try{await api(t+'?id=eq.'+id,{method:'DELETE'});show(t)}catch(e){$('#fe').textContent=e.message}};
+  $('#sv').onclick=async()=>{
+    const p={};
+    c.f.forEach(([k,ty])=>{
+      const el=document.querySelector('[data-k="'+k+'"]');
+      if(ty==='prods'){p[k]=[...el.querySelectorAll('input:checked')].map(i=>+i.value);return}
+      let v=ty==='bool'?el.checked:el.value.trim();
+      if(ty==='num')v=v===''?null:Number(v);
+      else if(ty==='cat'||ty==='col')v=v?Number(v):null;
+      else if(ty==='dt')v=v?new Date(v).toISOString():null;
+      else if(ty==='list')v=v.split(',').map(s=>s.trim()).filter(Boolean);
+      else if(ty==='imgs')v=v.split('\n').map(s=>s.trim()).filter(Boolean);
+      else if(ty==='date'&&v==='')v=null;
+      p[k]=v;
+    });
+    try{await api(id?t+'?id=eq.'+id:t,{method:id?'PATCH':'POST',headers:{Prefer:'return=minimal'},body:JSON.stringify(p)});if(t==='categories')cats=await api('categories?select=id,name&order=sort');if(t==='collections')cols=await api('collections?select=id,name&order=sort');show(t)}
+    catch(e){$('#fe').textContent=e.message}
+  };
+}
+async function shrink(f){
+  const b=await createImageBitmap(f),s=Math.min(1,2400/Math.max(b.width,b.height)),c=document.createElement('canvas');
+  c.width=Math.round(b.width*s);c.height=Math.round(b.height*s);c.getContext('2d').drawImage(b,0,0,c.width,c.height);
+  return new Promise(r=>c.toBlob(r,'image/jpeg',.85));
+}
+async function upload(file){
+  const blob=await shrink(file),name=Date.now()+'-'+Math.random().toString(36).slice(2,8)+'.jpg';
+  const r=await fetch(B+'/storage/v1/object/images/'+name,{method:'POST',headers:{apikey:K,Authorization:'Bearer '+S.a,'Content-Type':'image/jpeg'},body:blob});
+  if(!r.ok){let m='Upload failed';try{m=(await r.json()).message||m}catch(e){}throw new Error(m)}
+  return B+'/storage/v1/object/public/images/'+name;
+}
+const ST=['new','confirmed','preparing','shipped','delivered','cancelled'];
+async function orders(){
+  const o=await api('orders?select=*,order_items(*)&order=created_at.desc&limit=100');
+  $('main').innerHTML=o.length?o.map(x=>'<div class="box"><div class="row"><div class="g"><b>'+esc(x.customer_name)+'</b> <span class="mut">'+new Date(x.created_at).toLocaleString()+' \u00B7 #'+x.id.slice(0,8).toUpperCase()+'</span><div><a style="color:var(--ac)" href="tel:'+esc(x.phone)+'">'+esc(x.phone)+'</a></div><div class="mut">'+esc(x.address)+'</div></div><b>\u20AC'+x.total+'</b></div><div class="mut" style="margin:8px 0">'+(x.order_items||[]).map(i=>esc(i.product_name)+' ('+esc(i.color)+(i.size?', '+esc(i.size):'')+') x'+i.quantity).join('<br>')+'</div><div class="row"><select data-o="'+x.id+'" style="margin:0">'+ST.map(s=>'<option '+(s===x.status?'selected':'')+'>'+s+'</option>').join('')+'</select><button class="d" data-d="'+x.id+'">Delete</button></div></div>').join(''):'<p class="mut">No orders yet.</p>';
+  document.querySelectorAll('[data-o]').forEach(s=>s.onchange=()=>api('orders?id=eq.'+s.dataset.o,{method:'PATCH',headers:{Prefer:'return=minimal'},body:JSON.stringify({status:s.value})}).catch(e=>alert(e.message)));
+  document.querySelectorAll('[data-d]').forEach(b=>b.onclick=async()=>{if(confirm('Delete this order?')){await api('orders?id=eq.'+b.dataset.d,{method:'DELETE'}).catch(e=>alert(e.message));orders()}});
+}
+async function reviewsView(){
+  const [rv,pr]=await Promise.all([api('reviews?select=*&order=created_at.desc&limit=100'),api('products?select=id,name')]);
+  const nm=Object.fromEntries(pr.map(p=>[p.id,p.name]));
+  $('main').innerHTML=rv.length?rv.map(r=>'<div class="box"><b>'+esc(r.name)+'</b> <span class="mut">'+'\u2605'.repeat(r.rating)+' \u00B7 '+esc(nm[r.product_id]||'')+' \u00B7 '+(r.approved?'approved':'<b style="color:#ffb74d">waiting</b>')+'</span><div style="margin:6px 0">'+esc(r.body)+'</div>'+(r.image_url?'<img src="'+esc(r.image_url)+'" alt="" style="width:80px;border-radius:8px;margin-bottom:8px">':'')+'<div class="row">'+(r.approved?'<button data-u2="'+r.id+'" data-a="0">Hide</button>':'<button class="p" data-u2="'+r.id+'" data-a="1">Approve</button>')+'<button class="d" data-x2="'+r.id+'">Delete</button></div></div>').join(''):'<p class="mut">No reviews yet.</p>';
+  document.querySelectorAll('[data-u2]').forEach(b=>b.onclick=async()=>{await api('reviews?id=eq.'+b.dataset.u2,{method:'PATCH',headers:{Prefer:'return=minimal'},body:JSON.stringify({approved:b.dataset.a==='1'})}).catch(e=>alert(e.message));reviewsView()});
+  document.querySelectorAll('[data-x2]').forEach(b=>b.onclick=async()=>{if(confirm('Delete this review?')){await api('reviews?id=eq.'+b.dataset.x2,{method:'DELETE'}).catch(e=>alert(e.message));reviewsView()}});
+}
+async function settings(){
+  const s=await api('settings?select=*');
+  $('main').innerHTML='<div class="box"><h3 style="margin-bottom:12px">Shop settings</h3>'+s.map(x=>'<label>'+esc(x.key)+'</label><input data-s="'+esc(x.key)+'" value="'+esc(x.value)+'">').join('')+'<p class="mut" style="margin-bottom:12px">WhatsApp number: digits only with country code, e.g. 905411166391</p><button class="p" id="ss">Save</button><div id="sm"></div></div>';
+  $('#ss').onclick=async()=>{try{for(const i of document.querySelectorAll('[data-s]'))await api('settings?key=eq.'+encodeURIComponent(i.dataset.s),{method:'PATCH',headers:{Prefer:'return=minimal'},body:JSON.stringify({value:i.value.trim()})});$('#sm').innerHTML='<p class="ok">Saved.</p>'}catch(e){$('#sm').innerHTML='<p class="err">'+esc(e.message)+'</p>'}};
+}
+S?start().catch(()=>loginView()):loginView();
+</script>
+</body>
+</html>
