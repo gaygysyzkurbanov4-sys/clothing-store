@@ -1,0 +1,87 @@
+<!-- ===== HERO SLIDER: index.html-yň <body> ýokarsyna goş ===== -->
+<style>
+  .fh-hero{--fh-bg:#f5efe6;position:relative;background:var(--fh-bg);padding:28px 16px 40px;text-align:center;overflow:hidden}
+  .fh-stage{position:relative;width:100%;max-width:560px;height:clamp(300px,58vh,520px);margin:0 auto}
+  .fh-slide{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    opacity:0;transform:scale(.97);transition:opacity .9s ease,transform 1.1s cubic-bezier(.22,.61,.36,1);pointer-events:none}
+  .fh-slide.is-active{opacity:1;transform:scale(1);pointer-events:auto}
+  .fh-slide img{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;display:block;
+    mix-blend-mode:multiply;
+    -webkit-mask-image:radial-gradient(closest-side,#000 80%,transparent 100%);
+            mask-image:radial-gradient(closest-side,#000 80%,transparent 100%)}
+  .fh-shadow{width:min(60%,300px);height:18px;margin:6px auto 0;border-radius:50%;
+    background:radial-gradient(ellipse at center,rgba(60,45,30,.28) 0%,rgba(60,45,30,0) 70%);filter:blur(6px)}
+  .fh-arrow{position:absolute;top:44%;transform:translateY(-50%);width:44px;height:44px;border-radius:50%;
+    border:1px solid rgba(60,45,30,.18);background:rgba(255,255,255,.55);backdrop-filter:blur(6px);
+    color:#3a2f24;font-size:20px;line-height:1;cursor:pointer;z-index:3;transition:background .25s,transform .25s}
+  .fh-arrow:hover{background:#fff;transform:translateY(-50%) scale(1.06)}
+  .fh-prev{left:max(8px,calc(50% - 360px))}
+  .fh-next{right:max(8px,calc(50% - 360px))}
+  .fh-dots{display:flex;gap:8px;justify-content:center;margin:18px 0 22px}
+  .fh-dot{width:8px;height:8px;border-radius:50%;border:0;padding:0;background:rgba(60,45,30,.25);cursor:pointer;
+    transition:background .3s,transform .3s}
+  .fh-dot.is-active{background:#3a2f24;transform:scale(1.35)}
+  .fh-cta{display:inline-block;padding:14px 34px;border:1px solid #3a2f24;color:#3a2f24;text-decoration:none;
+    font-size:13px;letter-spacing:.18em;text-transform:uppercase;transition:background .3s,color .3s}
+  .fh-cta:hover{background:#3a2f24;color:#f5efe6}
+  @media (max-width:600px){.fh-hero{padding:18px 8px 32px}.fh-arrow{width:38px;height:38px}}
+  @media (prefers-reduced-motion:reduce){.fh-slide{transition:opacity .01s}}
+</style>
+
+<section class="fh-hero" id="fhHero" aria-roledescription="carousel" aria-label="Featured collection">
+  <div class="fh-stage" id="fhStage">
+    <div class="fh-slide is-active"><img src="look-1.webp" alt="Look 1" fetchpriority="high" decoding="async"></div>
+    <div class="fh-slide"><img src="look-2.webp" alt="Look 2" loading="lazy" decoding="async"></div>
+    <div class="fh-slide"><img src="look-3.webp" alt="Look 3" loading="lazy" decoding="async"></div>
+    <div class="fh-slide"><img src="look-4.webp" alt="Look 4" loading="lazy" decoding="async"></div>
+    <div class="fh-slide"><img src="look-5.webp" alt="Look 5" loading="lazy" decoding="async"></div>
+    <div class="fh-slide"><img src="look-6.webp" alt="Look 6" loading="lazy" decoding="async"></div>
+    <div class="fh-slide"><img src="look-7.webp" alt="Look 7" loading="lazy" decoding="async"></div>
+    <div class="fh-slide"><img src="look-8.webp" alt="Look 8" loading="lazy" decoding="async"></div>
+    <div class="fh-slide"><img src="look-9.webp" alt="Look 9" loading="lazy" decoding="async"></div>
+    <button class="fh-arrow fh-prev" id="fhPrev" aria-label="Previous">&#10094;</button>
+    <button class="fh-arrow fh-next" id="fhNext" aria-label="Next">&#10095;</button>
+  </div>
+  <div class="fh-shadow"></div>
+  <div class="fh-dots" id="fhDots"></div>
+  <!-- href-i öz dükanyňyň kolleksiýa bölüminiň id-sine üýtget -->
+  <a class="fh-cta" href="#collection">KOLEKSIÝANY KEŞFET</a>
+</section>
+
+<script>
+(function(){
+  var hero=document.getElementById('fhHero'),
+      slides=hero.querySelectorAll('.fh-slide'),
+      dotsBox=document.getElementById('fhDots'),
+      i=0,timer=null,DELAY=3500,dots=[];
+  slides.forEach(function(_,n){
+    var d=document.createElement('button');
+    d.className='fh-dot'+(n===0?' is-active':'');
+    d.setAttribute('aria-label','Slide '+(n+1));
+    d.onclick=function(){go(n);restart();};
+    dotsBox.appendChild(d);dots.push(d);
+  });
+  function go(n){
+    slides[i].classList.remove('is-active');dots[i].classList.remove('is-active');
+    i=(n+slides.length)%slides.length;
+    slides[i].classList.add('is-active');dots[i].classList.add('is-active');
+  }
+  function start(){stop();timer=setInterval(function(){go(i+1);},DELAY);}
+  function stop(){if(timer){clearInterval(timer);timer=null;}}
+  function restart(){start();}
+  document.getElementById('fhPrev').onclick=function(){go(i-1);restart();};
+  document.getElementById('fhNext').onclick=function(){go(i+1);restart();};
+  hero.addEventListener('mouseenter',stop);
+  hero.addEventListener('mouseleave',start);
+  document.addEventListener('visibilitychange',function(){document.hidden?stop():start();});
+  // swipe (telefon)
+  var sx=null;
+  hero.addEventListener('touchstart',function(e){sx=e.touches[0].clientX;stop();},{passive:true});
+  hero.addEventListener('touchend',function(e){
+    if(sx!==null){var dx=e.changedTouches[0].clientX-sx;if(Math.abs(dx)>40)go(dx<0?i+1:i-1);}
+    sx=null;start();
+  });
+  start();
+})();
+</script>
+<!-- ===== HERO SLIDER ŞU ÝERDE gutarýar ===== -->
