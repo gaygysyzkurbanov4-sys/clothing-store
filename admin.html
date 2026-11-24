@@ -65,13 +65,15 @@ function loginView(msg){
   };
 }
 const T={
-  products:{label:'Products',order:'created_at.desc',title:'name',f:[['name','text'],['price','num','Price (EUR)'],['old_price','num','Old price (optional)'],['category_id','cat','Category'],['gender','sel','Gender (used by the Men / Women menu)',['unisex','men','women']],['images','imgs','Images'],['sprite360','img','360 sprite (6 x 4 grid, 24 frames)'],['colors','list','Colors (comma separated)'],['sizes','list','Sizes (e.g. XS, S, M, L, XL, XXL)'],['model_info','text','Model info (e.g. Model is 185 cm and wears M)'],['stock','num'],['description','area'],['is_new','bool','Show "New" badge'],['is_featured','bool','Featured'],['collection_id','col','Collection'],['is_exclusive','bool','Exclusive (only sold in this shop)'],['limited_qty','num','Limited edition size (empty = not limited)'],['drop_at','dt','Drop date and time (empty = on sale now)'],['look_ids','prods','Complete the look (tick matching products)'],['active','bool','Visible in shop']],def:{active:true,stock:0,gender:'unisex'}},
+  products:{label:'Products',order:'created_at.desc',title:'name',f:[['name','text'],['price','num','Price (EUR)'],['old_price','num','Old price (optional)'],['category_id','cat','Category'],['gender','sel','Gender (used by the Men / Women menu)',['unisex','men','women']],['images','imgs','Images'],['sprite360','img','360 sprite (6 x 4 grid, 24 frames)'],['variants','variants','Color gallery (photos and 360 for each color)'],['colors','list','Colors (comma separated)'],['sizes','list','Sizes (e.g. XS, S, M, L, XL, XXL)'],['model_info','text','Model info (e.g. Model is 185 cm and wears M)'],['stock','num'],['description','area'],['is_new','bool','Show "New" badge'],['is_featured','bool','Featured'],['collection_id','col','Collection'],['is_exclusive','bool','Exclusive (only sold in this shop)'],['limited_qty','num','Limited edition size (empty = not limited)'],['drop_at','dt','Drop date and time (empty = on sale now)'],['look_ids','prods','Complete the look (tick matching products)'],['active','bool','Visible in shop']],def:{active:true,stock:0,gender:'unisex'}},
   categories:{label:'Categories',order:'sort',title:'name',f:[['name','text'],['image_url','img','Image'],['sort','num','Order (1, 2, 3...)']],def:{sort:0}},
   collections:{label:'Collections',order:'sort',title:'name',f:[['name','text'],['description','text','Short description'],['image_url','img','Image'],['sort','num','Order (1, 2, 3...)']],def:{sort:0}},
+  delivery_zones:{label:'Delivery',order:'sort',title:'name',f:[['name','text','Zone name (for example Istanbul)'],['min_days','num','Minimum days'],['max_days','num','Maximum days'],['price','num','Shipping price (EUR)'],['free_over','num','Free shipping over (EUR, empty = never)'],['sort','num','Order (1, 2, 3...)']],def:{min_days:2,max_days:5,price:0,sort:0}},
   hero_slides:{label:'Banner',order:'sort',title:'title',f:[['title','text','Big headline'],['subtitle','text','Small text'],['image_url','img','Background image'],['sort','num','Order (1, 2, 3...)'],['active','bool','Visible']],def:{active:true,sort:0}},
   journal_posts:{label:'Journal',order:'post_date.desc',title:'title',f:[['title','text'],['image_url','img','Image'],['content','area'],['post_date','date','Date']],def:{}}
 };
-const tabs=[['orders','Orders'],...Object.keys(T).map(k=>[k,T[k].label]),['reviews','Reviews'],['settings','Settings']];
+const tabs=[['orders','Orders'],...Object.keys(T).map(k=>[k,T[k].label]),['lookbooks','Lookbooks'],['alerts','Alerts'],['carts','Carts'],['loyalty','Loyalty'],['subscribers','Subscribers'],['reviews','Reviews'],['settings','Settings']];
+const VW={orders:()=>orders(),settings:()=>settings(),reviews:()=>reviewsView(),lookbooks:()=>lookbooksView(),alerts:()=>alertsView(),carts:()=>cartsView(),loyalty:()=>loyaltyView(),subscribers:()=>subsView()};
 let cur='orders',cats=[],cols=[],data=[];
 const loc=v=>{if(!v)return '';const d=new Date(v);d.setMinutes(d.getMinutes()-d.getTimezoneOffset());return d.toISOString().slice(0,16)};
 function shell(inner){
@@ -81,7 +83,7 @@ function shell(inner){
 async function start(){cats=await api('categories?select=id,name&order=sort').catch(()=>[]);cols=await api('collections?select=id,name&order=sort').catch(()=>[]);show('orders')}
 async function show(t){
   cur=t;shell('<p class="mut">Loading...</p>');
-  try{t==='orders'?await orders():t==='settings'?await settings():t==='reviews'?await reviewsView():await list(t)}
+  try{const f=VW[t];f?await f():await list(t)}
   catch(e){$('main').innerHTML='<p class="err">'+esc(e.message)+'</p>'}
 }
 async function list(t){
@@ -100,6 +102,7 @@ function form(t,id){
     if(ty==='col')return L+'<select data-k="'+k+'"><option value="">-</option>'+cols.map(x=>'<option value="'+x.id+'" '+(x.id===v?'selected':'')+'>'+esc(x.name)+'</option>').join('')+'</select>';
     if(ty==='dt')return L+'<input type="datetime-local" data-k="'+k+'" value="'+esc(loc(v))+'">';
     if(ty==='prods')return L+'<div class="box" data-k="'+k+'" style="padding:8px 12px;max-height:220px;overflow:auto">'+data.filter(x=>x.id!==it.id).map(x=>'<label style="display:flex;gap:8px;align-items:center;padding:6px 0;color:var(--tx)"><input type="checkbox" value="'+x.id+'" '+((v||[]).includes(x.id)?'checked':'')+'>'+esc(x.name)+'</label>').join('')+'</div>';
+    if(ty==='variants'){const cl=it.colors||[];if(!cl.length)return L+'<p class="mut">Save the product with its colors first, then add photos for each color here.</p>';const vs=it.variants||[];return L+cl.map(c=>{const x=vs.find(y=>y.color===c)||{};return '<div class="box" data-vc="'+esc(c)+'"><b>'+esc(c)+'</b><label>Photos (one URL per line)</label><textarea rows="3" data-vk="'+esc(c)+'|images">'+esc((x.images||[]).join('\n'))+'</textarea><button data-u="'+esc(c)+'|images" style="margin:-6px 0 12px">Upload photo</button><label>360 sprite (optional)</label><input data-vk="'+esc(c)+'|sprite" value="'+esc(x.sprite360||'')+'"><button data-u="'+esc(c)+'|sprite" style="margin:-6px 0 4px">Upload photo</button></div>'}).join('')}
     if(ty==='cat')return L+'<select data-k="'+k+'"><option value="">-</option>'+cats.map(x=>'<option value="'+x.id+'" '+(x.id===v?'selected':'')+'>'+esc(x.name)+'</option>').join('')+'</select>';
     if(ty==='img')return L+'<input data-k="'+k+'" value="'+esc(v)+'" placeholder="Image URL or upload"><button data-u="'+k+'" style="margin:-6px 0 12px">Upload photo</button>';
     if(ty==='imgs')return L+'<div class="pv" id="pv"></div><textarea rows="3" data-k="'+k+'" placeholder="One image URL per line">'+esc((v||[]).join('\n'))+'</textarea><button data-u="'+k+'" style="margin:-6px 0 12px">Upload photo</button>';
@@ -113,7 +116,7 @@ function form(t,id){
     f.onchange=async()=>{
       if(!f.files[0])return;b.textContent='Uploading...';
       try{
-        const url=await upload(f.files[0]),el=document.querySelector('[data-k="'+b.dataset.u+'"]');
+        const url=await upload(f.files[0]),el=document.querySelector('[data-k="'+b.dataset.u+'"],[data-vk="'+b.dataset.u+'"]');
         el.value=el.tagName==='TEXTAREA'?(el.value.trim()?el.value.trim()+'\n':'')+url:url;pv();b.textContent='Uploaded. Add another?';
       }catch(e){b.textContent='Upload photo';$('#fe').textContent=e.message}
     };f.click();
@@ -125,6 +128,7 @@ function form(t,id){
     c.f.forEach(([k,ty])=>{
       const el=document.querySelector('[data-k="'+k+'"]');
       if(ty==='prods'){p[k]=[...el.querySelectorAll('input:checked')].map(i=>+i.value);return}
+      if(ty==='variants'){p[k]=[...document.querySelectorAll('[data-vc]')].map(b=>({color:b.dataset.vc,images:b.querySelector('textarea').value.split('\n').map(s=>s.trim()).filter(Boolean),sprite360:b.querySelector('input').value.trim()||null})).filter(v=>v.images.length||v.sprite360);return}
       let v=ty==='bool'?el.checked:el.value.trim();
       if(ty==='num')v=v===''?null:Number(v);
       else if(ty==='cat'||ty==='col')v=v?Number(v):null;
@@ -152,7 +156,7 @@ async function upload(file){
 const ST=['new','confirmed','preparing','shipped','delivered','cancelled'];
 async function orders(){
   const o=await api('orders?select=*,order_items(*)&order=created_at.desc&limit=100');
-  $('main').innerHTML=o.length?o.map(x=>'<div class="box"><div class="row"><div class="g"><b>'+esc(x.customer_name)+'</b> <span class="mut">'+new Date(x.created_at).toLocaleString()+' \u00B7 #'+x.id.slice(0,8).toUpperCase()+'</span><div><a style="color:var(--ac)" href="tel:'+esc(x.phone)+'">'+esc(x.phone)+'</a></div><div class="mut">'+esc(x.address)+'</div></div><b>\u20AC'+x.total+'</b></div><div class="mut" style="margin:8px 0">'+(x.order_items||[]).map(i=>esc(i.product_name)+' ('+esc(i.color)+(i.size?', '+esc(i.size):'')+') x'+i.quantity).join('<br>')+'</div><div class="row"><select data-o="'+x.id+'" style="margin:0">'+ST.map(s=>'<option '+(s===x.status?'selected':'')+'>'+s+'</option>').join('')+'</select><button class="d" data-d="'+x.id+'">Delete</button></div></div>').join(''):'<p class="mut">No orders yet.</p>';
+  $('main').innerHTML=o.length?o.map(x=>'<div class="box"><div class="row"><div class="g"><b>'+esc(x.customer_name)+'</b> <span class="mut">'+new Date(x.created_at).toLocaleString()+' \u00B7 #'+x.id.slice(0,8).toUpperCase()+'</span><div><a style="color:var(--ac)" href="tel:'+esc(x.phone)+'">'+esc(x.phone)+'</a></div><div class="mut">'+esc(x.address)+'</div>'+(x.shipping_zone?'<div class="mut">Delivery: '+esc(x.shipping_zone)+' \u00B7 \u20AC'+(x.shipping_cost||0)+'</div>':'')+(x.points_used?'<div class="mut">Wants to use '+x.points_used+' loyalty points</div>':'')+'</div><b>\u20AC'+x.total+'</b></div><div class="mut" style="margin:8px 0">'+(x.order_items||[]).map(i=>esc(i.product_name)+' ('+esc(i.color)+(i.size?', '+esc(i.size):'')+') x'+i.quantity).join('<br>')+'</div><div class="row"><select data-o="'+x.id+'" style="margin:0">'+ST.map(s=>'<option '+(s===x.status?'selected':'')+'>'+s+'</option>').join('')+'</select><button class="d" data-d="'+x.id+'">Delete</button></div></div>').join(''):'<p class="mut">No orders yet.</p>';
   document.querySelectorAll('[data-o]').forEach(s=>s.onchange=()=>api('orders?id=eq.'+s.dataset.o,{method:'PATCH',headers:{Prefer:'return=minimal'},body:JSON.stringify({status:s.value})}).catch(e=>alert(e.message)));
   document.querySelectorAll('[data-d]').forEach(b=>b.onclick=async()=>{if(confirm('Delete this order?')){await api('orders?id=eq.'+b.dataset.d,{method:'DELETE'}).catch(e=>alert(e.message));orders()}});
 }
@@ -162,6 +166,66 @@ async function reviewsView(){
   $('main').innerHTML=rv.length?rv.map(r=>'<div class="box"><b>'+esc(r.name)+'</b> <span class="mut">'+'\u2605'.repeat(r.rating)+' \u00B7 '+esc(nm[r.product_id]||'')+' \u00B7 '+(r.approved?'approved':'<b style="color:#ffb74d">waiting</b>')+'</span><div style="margin:6px 0">'+esc(r.body)+'</div>'+(r.image_url?'<img src="'+esc(r.image_url)+'" alt="" style="width:80px;border-radius:8px;margin-bottom:8px">':'')+'<div class="row">'+(r.approved?'<button data-u2="'+r.id+'" data-a="0">Hide</button>':'<button class="p" data-u2="'+r.id+'" data-a="1">Approve</button>')+'<button class="d" data-x2="'+r.id+'">Delete</button></div></div>').join(''):'<p class="mut">No reviews yet.</p>';
   document.querySelectorAll('[data-u2]').forEach(b=>b.onclick=async()=>{await api('reviews?id=eq.'+b.dataset.u2,{method:'PATCH',headers:{Prefer:'return=minimal'},body:JSON.stringify({approved:b.dataset.a==='1'})}).catch(e=>alert(e.message));reviewsView()});
   document.querySelectorAll('[data-x2]').forEach(b=>b.onclick=async()=>{if(confirm('Delete this review?')){await api('reviews?id=eq.'+b.dataset.x2,{method:'DELETE'}).catch(e=>alert(e.message));reviewsView()}});
+}
+
+const digits=s=>String(s||'').replace(/\D/g,'');
+const wa=(phone,text)=>'https://wa.me/'+digits(phone)+'?text='+encodeURIComponent(text);
+const tier=n=>n>=500?'VIP':n>=200?'Silver':'Bronze';
+async function lookbooksView(){
+  const lb=await api('lookbooks?select=*&order=sort');
+  $('main').innerHTML='<button class="p" id="lbn" style="margin-bottom:12px">+ Add lookbook</button>'+(lb.length?lb.map(x=>'<div class="box row">'+(x.image_url?'<img src="'+esc(x.image_url)+'" alt="">':'')+'<div class="g"><b>'+esc(x.title)+'</b><div class="mut">'+(x.spots||[]).length+' product spots'+(x.active?'':' \u00B7 hidden')+'</div></div><button data-lb="'+x.id+'">Edit</button></div>').join(''):'<p class="mut">No lookbooks yet. Add a fashion photo, then tap on it to place product spots.</p>');
+  $('#lbn').onclick=()=>lookbookForm(null);
+  document.querySelectorAll('[data-lb]').forEach(b=>b.onclick=()=>lookbookForm(lb.find(x=>x.id===+b.dataset.lb)));
+}
+async function lookbookForm(it){
+  const pr=await api('products?select=id,name&order=name');
+  const spots=JSON.parse(JSON.stringify((it&&it.spots)||[]));
+  $('main').innerHTML='<div class="box"><h3 style="margin-bottom:12px">'+(it?'Edit':'New')+' lookbook</h3><label>Title</label><input id="lt" value="'+esc(it&&it.title)+'"><label>Subtitle</label><input id="lsb" value="'+esc(it&&it.subtitle)+'"><label>Photo</label><input id="li" value="'+esc(it&&it.image_url)+'" placeholder="Photo URL or upload"><button id="lu" style="margin:-6px 0 12px">Upload photo</button><div class="cb"><input type="checkbox" id="la" '+(!it||it.active?'checked':'')+'><label>Visible in shop</label></div><label>Order</label><input id="lo2" type="number" value="'+((it&&it.sort)||0)+'"><p class="mut">Tap the photo to add a spot, then choose the product for each spot.</p><div id="lw" style="position:relative;margin:8px 0"></div><div id="lsp"></div><div class="row"><button class="p" id="lsv">Save</button><button id="lcn">Cancel</button>'+(it?'<button class="d" id="ldl">Delete</button>':'')+'</div><div class="err" id="lfe"></div></div>';
+  const draw=()=>{
+    const u=$('#li').value.trim();
+    $('#lw').innerHTML=u?'<img src="'+esc(u)+'" alt="" id="lim" style="width:100%;border-radius:12px;display:block;cursor:crosshair">'+spots.map((s,i)=>'<span style="position:absolute;left:'+s.x+'%;top:'+s.y+'%;width:26px;height:26px;margin:-13px 0 0 -13px;border-radius:50%;background:#fff;color:#000;font-weight:700;display:grid;place-items:center;border:2px solid #000;pointer-events:none">'+(i+1)+'</span>').join(''):'<p class="mut">Add a photo first.</p>';
+    $('#lsp').innerHTML=spots.map((s,i)=>'<div class="row" style="margin-bottom:8px"><b>'+(i+1)+'</b><select data-sp="'+i+'" style="margin:0">'+pr.map(p=>'<option value="'+p.id+'" '+(+s.product_id===p.id?'selected':'')+'>'+esc(p.name)+'</option>').join('')+'</select><button class="d" data-sd="'+i+'">x</button></div>').join('');
+    const im=$('#lim');if(im)im.onclick=e=>{const r=im.getBoundingClientRect();spots.push({x:+((e.clientX-r.left)/r.width*100).toFixed(1),y:+((e.clientY-r.top)/r.height*100).toFixed(1),product_id:pr[0]?pr[0].id:null});draw()};
+    document.querySelectorAll('[data-sp]').forEach(s=>s.onchange=()=>{spots[+s.dataset.sp].product_id=+s.value});
+    document.querySelectorAll('[data-sd]').forEach(b=>b.onclick=()=>{spots.splice(+b.dataset.sd,1);draw()});
+  };
+  draw();$('#li').onchange=draw;
+  $('#lu').onclick=()=>{const f=document.createElement('input');f.type='file';f.accept='image/*';f.onchange=async()=>{if(!f.files[0])return;$('#lu').textContent='Uploading...';try{$('#li').value=await upload(f.files[0]);draw();$('#lu').textContent='Uploaded'}catch(e){$('#lu').textContent='Upload photo';$('#lfe').textContent=e.message}};f.click()};
+  $('#lcn').onclick=lookbooksView;
+  if(it)$('#ldl').onclick=async()=>{if(!confirm('Delete this lookbook?'))return;try{await api('lookbooks?id=eq.'+it.id,{method:'DELETE'});lookbooksView()}catch(e){$('#lfe').textContent=e.message}};
+  $('#lsv').onclick=async()=>{const body={title:$('#lt').value.trim(),subtitle:$('#lsb').value.trim()||null,image_url:$('#li').value.trim()||null,active:$('#la').checked,sort:Number($('#lo2').value)||0,spots};if(!body.title){$('#lfe').textContent='Please add a title.';return}try{await api(it?'lookbooks?id=eq.'+it.id:'lookbooks',{method:it?'PATCH':'POST',headers:{Prefer:'return=minimal'},body:JSON.stringify(body)});lookbooksView()}catch(e){$('#lfe').textContent=e.message}};
+}
+async function alertsView(){
+  const [al,pr]=await Promise.all([api('stock_alerts?select=*&order=created_at.desc&limit=200'),api('products?select=id,name,stock,price')]);
+  const pm=Object.fromEntries(pr.map(p=>[p.id,p]));
+  $('main').innerHTML=al.length?al.map(a=>{
+    const p=pm[a.product_id]||{},ready=!a.notified&&(a.kind==='stock'?p.stock>0:p.price<a.price_at);
+    const msg=a.kind==='stock'?'Good news! '+p.name+(a.size?' (size '+a.size+')':'')+' is back in stock.':'Good news! The price of '+p.name+' dropped to \u20AC'+p.price+'.';
+    return '<div class="box"><b>'+esc(p.name||'Product')+'</b> <span class="mut">'+(a.kind==='stock'?'Back in stock':'Price drop (was \u20AC'+a.price_at+', now \u20AC'+p.price+')')+(a.size?' \u00B7 size '+esc(a.size):'')+'</span><div><a style="color:var(--ac)" href="tel:'+esc(a.phone)+'">'+esc(a.phone)+'</a> \u00B7 '+(a.notified?'<span class="mut">done</span>':ready?'<b style="color:#8be59b">ready to notify</b>':'<span class="mut">waiting</span>')+'</div><div class="row" style="margin-top:10px">'+(ready?'<a href="'+wa(a.phone,msg)+'" target="_blank" rel="noopener"><button class="p">Send on WhatsApp</button></a>':'')+(a.notified?'':'<button data-d1="'+a.id+'">Mark done</button>')+'<button class="d" data-x1="'+a.id+'">Delete</button></div></div>'}).join(''):'<p class="mut">No alerts yet. Customers leave their number on a sold out product or to watch a price.</p>';
+  document.querySelectorAll('[data-d1]').forEach(b=>b.onclick=async()=>{await api('stock_alerts?id=eq.'+b.dataset.d1,{method:'PATCH',headers:{Prefer:'return=minimal'},body:JSON.stringify({notified:true})}).catch(e=>alert(e.message));alertsView()});
+  document.querySelectorAll('[data-x1]').forEach(b=>b.onclick=async()=>{if(confirm('Delete this alert?')){await api('stock_alerts?id=eq.'+b.dataset.x1,{method:'DELETE'}).catch(e=>alert(e.message));alertsView()}});
+}
+async function cartsView(){
+  const l=await api('abandoned_carts?select=*&recovered=eq.false&order=updated_at.desc&limit=100');
+  $('main').innerHTML=l.length?l.map(c=>{
+    const items=(c.items||[]).map(i=>esc(i.name)+' ('+esc(i.color||'')+(i.size?', '+esc(i.size):'')+') x'+i.qty).join('<br>');
+    const msg='Hello'+(c.name?' '+c.name:'')+'! You left items in your cart. Do you need any help to complete your order?';
+    return '<div class="box"><b>'+esc(c.name||'Customer')+'</b> <span class="mut">'+new Date(c.updated_at).toLocaleString()+'</span><div><a style="color:var(--ac)" href="tel:'+esc(c.phone)+'">'+esc(c.phone)+'</a> \u00B7 <b>\u20AC'+c.total+'</b></div><div class="mut" style="margin:6px 0">'+items+'</div><div class="row"><a href="'+wa(c.phone,msg)+'" target="_blank" rel="noopener"><button class="p">Remind on WhatsApp</button></a><button data-d2="'+c.id+'">Mark done</button><button class="d" data-x2c="'+c.id+'">Delete</button></div></div>'}).join(''):'<p class="mut">No open carts. A cart appears here when a customer types a phone number in the cart and does not finish the order.</p>';
+  document.querySelectorAll('[data-d2]').forEach(b=>b.onclick=async()=>{await api('abandoned_carts?id=eq.'+b.dataset.d2,{method:'PATCH',headers:{Prefer:'return=minimal'},body:JSON.stringify({recovered:true})}).catch(e=>alert(e.message));cartsView()});
+  document.querySelectorAll('[data-x2c]').forEach(b=>b.onclick=async()=>{if(confirm('Delete this cart?')){await api('abandoned_carts?id=eq.'+b.dataset.x2c,{method:'DELETE'}).catch(e=>alert(e.message));cartsView()}});
+}
+async function loyaltyView(){
+  const l=await api('loyalty?select=*&order=points.desc&limit=200');
+  $('main').innerHTML='<p class="mut" style="margin-bottom:10px">1 point per \u20AC1 after an order is marked Delivered. 100 points = \u20AC5 off. Confirm the customer on WhatsApp before you redeem points.</p>'+(l.length?l.map(x=>'<div class="box"><b>'+esc(x.name||'Customer')+'</b> <span class="mut">'+tier(x.lifetime)+'</span><div><a style="color:var(--ac)" href="tel:'+esc(x.phone)+'">'+esc(x.phone)+'</a></div><div>'+x.points+' points <span class="mut">('+x.lifetime+' earned in total)</span></div><div class="row" style="margin-top:10px"><button data-r1="'+esc(x.phone)+'">Redeem 100</button><button data-a1="'+esc(x.phone)+'">Adjust</button></div></div>').join(''):'<p class="mut">No customers with points yet. Points appear when an order is marked Delivered.</p>');
+  const upd=async(ph,pts)=>{await api('loyalty?phone=eq.'+encodeURIComponent(ph),{method:'PATCH',headers:{Prefer:'return=minimal'},body:JSON.stringify({points:Math.max(0,pts),updated_at:new Date().toISOString()})}).catch(e=>alert(e.message));loyaltyView()};
+  document.querySelectorAll('[data-r1]').forEach(b=>b.onclick=()=>{const x=l.find(y=>y.phone===b.dataset.r1);if(x.points<100){alert('Less than 100 points.');return}if(confirm('Remove 100 points?'))upd(x.phone,x.points-100)});
+  document.querySelectorAll('[data-a1]').forEach(b=>b.onclick=()=>{const x=l.find(y=>y.phone===b.dataset.a1),n=prompt('Add or remove points (for example 50 or -50)','0');if(n&&!isNaN(+n))upd(x.phone,x.points+Math.round(+n))});
+}
+async function subsView(){
+  const l=await api('subscribers?select=*&order=created_at.desc&limit=500');
+  $('main').innerHTML='<button class="p" id="cpy" style="margin-bottom:12px">Copy all emails ('+l.length+')</button>'+(l.length?l.map(x=>'<div class="box"><b>'+esc(x.email)+'</b> <span class="mut">'+new Date(x.created_at).toLocaleDateString()+'</span> <button class="d" data-sx="'+x.id+'" style="float:right">Delete</button></div>').join(''):'<p class="mut">No subscribers yet.</p>');
+  $('#cpy').onclick=()=>{const t=l.map(x=>x.email).join(', ');navigator.clipboard.writeText(t).then(()=>{$('#cpy').textContent='Copied'}).catch(()=>prompt('Copy the emails:',t))};
+  document.querySelectorAll('[data-sx]').forEach(b=>b.onclick=async()=>{if(confirm('Delete this email?')){await api('subscribers?id=eq.'+b.dataset.sx,{method:'DELETE'}).catch(e=>alert(e.message));subsView()}});
 }
 async function settings(){
   const s=await api('settings?select=*');
